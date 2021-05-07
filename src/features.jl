@@ -12,7 +12,7 @@ function get_front_neighbor(env::MergingEnvironment, scene::Scene, egoid::Int64)
     # merge neighbor
     ego_lane = get_lane(env.roadway, ego)
     if ego_lane == main_lane(env)
-        fore_res = find_neighbor(scene, env.roadway, ego_proj)
+        fore_res = find_neighbor(scene, env.roadway, ego)
     else
         posF = Frenet(env.merge_proj, env.roadway)
         ego_proj = Entity(VehicleState(posF, env.roadway, vel(ego)), ego.def, ego.id)
