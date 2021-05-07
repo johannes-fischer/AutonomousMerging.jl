@@ -5,3 +5,5 @@
 *log*/
 *.png
 *.tex
+
+Manifest.toml
