@@ -99,64 +99,64 @@ A simulation environment for a highway merging scenario. Implemented using POMDP
 end
 
 POMDPs.discount(mdp::GenerativeMergingMDP) = mdp.discount_factor
-POMDPs.actions(mdp::GenerativeMergingMDP) = 1:7
+POMDPs.actions(::GenerativeMergingMDP) = 1:7
 POMDPs.actionindex(mdp::GenerativeMergingMDP, a::Int64) = a
 
 function POMDPs.initialstate(mdp::GenerativeMergingMDP)
     ImplicitDistribution() do rng
-    if mdp.random_n_cars
-        mdp.n_cars_main = rand(rng, mdp.min_cars:mdp.max_cars)
-    end
-    mdp.driver_models = Dict{Int64, DriverModel}(EGO_ID=>EgoDriver(LaneFollowingAccel(0.0)))
-    start_positions = sample(rng, mdp.main_lane_slots, mdp.n_cars_main, replace=false)   
-
-    start_velocities = mdp.initial_velocity .+ mdp.initial_velocity_std*randn(rng, mdp.n_cars_main)
-    ego = initial_merge_car_state(mdp, rng, EGO_ID)
-    ego_acc_0 = 0.0
-    scene = Scene(typeof(ego), mdp.n_cars_main + 1)
-    for i=1:mdp.n_cars_main
-        id = EGO_ID + i
-        veh_state = vehicle_state(start_positions[id - EGO_ID], main_lane(mdp.env),
-        start_velocities[id - EGO_ID], mdp.env.roadway)
-        veh = Entity(veh_state, mdp.car_def, id)
-        push!(scene, veh)
-        mdp.driver_models[id] = CooperativeIDM()
-        if mdp.traffic_speed == :mixed
-            v_des = sample(rng, [4.0, 5., 6.0], Weights([0.2, 0.3, 0.5]))
-        elseif mdp.traffic_speed == :fast
-            v_des = 15.0
+        if mdp.random_n_cars
+            mdp.n_cars_main = rand(rng, mdp.min_cars:mdp.max_cars)
         end
-        set_desired_speed!(mdp.driver_models[id], v_des)
-        if mdp.driver_type == :random
-            mdp.driver_models[id].c = rand(rng, 0:0.01:1) # change cooperativity
-        elseif mdp.driver_type == :binary 
-            mdp.driver_models[id].c = sample(rng, [0,1], Weights([0.9, 0.1])) # change cooperativity
-        elseif mdp.driver_type == :aggressive
-            mdp.driver_models[id].c = 0.0
-        elseif mdp.driver_type == :cooperative
-            mdp.driver_models[id].c = 1.0
-        end   
-    end
-    # burn in 
-    burn_in =rand(rng, mdp.min_burn_in:mdp.max_burn_in)
-    next_scene = Scene(eltype(scene), length(scene))
-    for t=1:burn_in
-        for (i, veh) in enumerate(scene)
+        mdp.driver_models = Dict{Int64, DriverModel}(EGO_ID=>EgoDriver(LaneFollowingAccel(0.0)))
+        start_positions = sample(rng, mdp.main_lane_slots, mdp.n_cars_main, replace=false)   
 
-            observe!(mdp.driver_models[veh.id], scene, mdp.env.roadway, veh.id)
-            a = rand(rng, mdp.driver_models[veh.id])
-
-            veh_state_p  = propagate(veh, a, mdp.env.roadway, mdp.dt, false)
-            entity = wrap_around(mdp.env, Entity(veh_state_p, veh.def, veh.id))
-            push!(next_scene, entity)
+        start_velocities = mdp.initial_velocity .+ mdp.initial_velocity_std*randn(rng, mdp.n_cars_main)
+        ego = initial_merge_car_state(mdp, rng, EGO_ID)
+        ego_acc_0 = 0.0
+        scene = Scene(typeof(ego), mdp.n_cars_main + 1)
+        for i=1:mdp.n_cars_main
+            id = EGO_ID + i
+            veh_state = vehicle_state(start_positions[id - EGO_ID], main_lane(mdp.env),
+            start_velocities[id - EGO_ID], mdp.env.roadway)
+            veh = Entity(veh_state, mdp.car_def, id)
+            push!(scene, veh)
+            mdp.driver_models[id] = CooperativeIDM()
+            if mdp.traffic_speed == :mixed
+                v_des = sample(rng, [4.0, 5., 6.0], Weights([0.2, 0.3, 0.5]))
+            elseif mdp.traffic_speed == :fast
+                v_des = 15.0
+            end
+            set_desired_speed!(mdp.driver_models[id], v_des)
+            if mdp.driver_type == :random
+                mdp.driver_models[id].c = rand(rng, 0:0.01:1) # change cooperativity
+            elseif mdp.driver_type == :binary 
+                mdp.driver_models[id].c = sample(rng, [0,1], Weights([0.9, 0.1])) # change cooperativity
+            elseif mdp.driver_type == :aggressive
+                mdp.driver_models[id].c = 0.0
+            elseif mdp.driver_type == :cooperative
+                mdp.driver_models[id].c = 1.0
+            end   
         end
-        copyto!(scene, next_scene)
-        empty!(next_scene)
+        # burn in 
+        burn_in =rand(rng, mdp.min_burn_in:mdp.max_burn_in)
+        next_scene = Scene(eltype(scene), length(scene))
+        for t=1:burn_in
+            for (i, veh) in enumerate(scene)
 
-    end
-    push!(scene, ego)
+                observe!(mdp.driver_models[veh.id], scene, mdp.env.roadway, veh.id)
+                a = rand(rng, mdp.driver_models[veh.id])
 
-    return AugScene(scene, (acc=ego_acc_0,))
+                veh_state_p  = propagate(veh, a, mdp.env.roadway, mdp.dt, false)
+                entity = wrap_around(mdp.env, Entity(veh_state_p, veh.def, veh.id))
+                push!(next_scene, entity)
+            end
+            copyto!(scene, next_scene)
+            empty!(next_scene)
+
+        end
+        push!(scene, ego)
+
+        return AugScene(scene, (acc=ego_acc_0,))
     end
 end    
 
@@ -356,7 +356,8 @@ end
 
 function POMDPs.convert_s(::Type{V}, s::AugScene, mdp::GenerativeMergingMDP) where V<:AbstractArray
     feature_vec = extract_features(mdp, s)
-    return normalize_features!(mdp, feature_vec)
+    normalize_features!(mdp, feature_vec)
+    return convert(V, feature_vec)
 end
 
 function POMDPs.convert_s(::Type{AugScene}, o::V, mdp::GenerativeMergingMDP) where V<:AbstractArray
